@@ -168,6 +168,17 @@ textarea{resize:vertical;min-height:96px}
 .filled{box-shadow:0 0 0 3px var(--accent) inset}
 .namerow{display:flex;gap:8px;flex-wrap:wrap}
 .namerow input{flex:1 1 240px}
+.osmbox{margin-top:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.osmbox .oshead{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg);font-size:.9rem;color:var(--muted)}
+.osmbox .oshead span{flex:1}
+.osmres{display:block;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:12px 14px;cursor:pointer;color:var(--ink);font:inherit;min-height:56px}
+.osmres:first-of-type{border-top:0}
+.osmres:hover,.osmres:focus-visible{background:var(--accent-soft)}
+.osmres:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+.osmres b{display:block}
+.osmres .oa{color:var(--muted);font-size:.92rem}
+.osmbox .osnone{padding:12px 14px;color:var(--muted)}
+.osmbox .osfoot{padding:6px 12px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--line)}
 /* Kalender */
 .cal-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .cal-head h2{flex:1;font-size:1.3rem;text-align:center}
@@ -491,14 +502,17 @@ textarea{resize:vertical;min-height:96px}
         <div class="field full"><label for="f_name">Filiale / Firma *</label>
           <div class="namerow">
             <input id="f_name" name="name" required placeholder="Markt Name Ort">
+            <button class="btn primary" id="btnAddrSearch" type="button">Adresse suchen</button>
             <a class="btn" id="btnWebSearch" href="#" target="_blank" rel="noopener" aria-disabled="true">Im Netz suchen</a>
           </div>
-          <p class="hint">Öffnet Google Maps mit Name (und Ort, falls ausgefüllt). Dort Adresse und Telefon kopieren und unten einfügen.</p>
+          <div id="osmBox" class="osmbox hidden" role="region" aria-label="Suchergebnisse"></div>
+          <p class="hint">«Adresse suchen» findet Adresse und oft auch die Telefonnummer und trägt sie per Antippen ein. «Im Netz suchen» öffnet Google Maps.</p>
         </div>
         <div class="field full paste">
           <label for="f_paste">Infos einfügen</label>
-          <textarea id="f_paste" rows="3" placeholder="Hier den kopierten Text aus Google Maps einfügen (Adresse, Telefon …)"></textarea>
+          <textarea id="f_paste" rows="3" placeholder="Tablet: in Google Maps beim Markt auf «Teilen» → «Kopieren», dann hier «Aus Zwischenablage einfügen»"></textarea>
           <div class="row" style="margin-top:8px;align-items:center">
+            <button class="btn small" type="button" id="btnClip">Aus Zwischenablage einfügen</button>
             <button class="btn primary small" type="button" id="btnParse">In Maske übertragen</button>
             <span class="hint" id="parseMsg" role="status"></span>
           </div>
@@ -1534,7 +1548,7 @@ textarea{resize:vertical;min-height:96px}
     updateKaufmannField();
     $("f_status").value = id ? statusOf(k) : copyFrom ? "Potenziell" : (stFilter || "Potenziell");
     $("kettenList").innerHTML = [...new Set(kunden.map(x => x.kette).filter(Boolean))].sort().map(x => `<option value="${esc(x)}"></option>`).join("");
-    $("f_paste").value = ""; $("parseMsg").textContent = "";
+    $("f_paste").value = ""; $("parseMsg").textContent = ""; $("osmBox").classList.add("hidden"); $("osmBox").innerHTML = "";
     formImgs = id ? (bilder[id] || []).map(b => ({...b, isNew: false, _orig: b.notiz || "", _origRolle: b.rolle || ""})) : []; formRemoved = []; fMoreOpen = false;
     $("fImgMsg").textContent = "Fotos von Filiale, Eierregal, Visitenkarte usw. Auf dem Tablet kannst du direkt die Kamera wählen.";
     renderFormGallery();
@@ -1623,6 +1637,78 @@ textarea{resize:vertical;min-height:96px}
   }
   ["f_name", "f_plz", "f_ort"].forEach(id => $(id).addEventListener("input", updateWebSearch));
 
+  // ---------- Adresse suchen (OpenStreetMap, kostenlos, ohne Schlüssel) ----------
+  let osmResults = [];
+  const osmQueries = () => {
+    const name = $("f_name").value.trim(), ort = $("f_ort").value.trim(), plz = $("f_plz").value.trim();
+    const extra = [plz, ort].filter(x => x && !norm(name).includes(norm(x))).join(" ");
+    const w = name.split(/\s+/).filter(Boolean), out = [];
+    out.push([name, extra].filter(Boolean).join(" "));
+    if (w.length > 2) out.push([w[0], w[w.length - 1], extra].filter(Boolean).join(" "));   // «EDEKA Ziegler Harsefeld» -> «EDEKA Harsefeld»
+    if (w.length > 1 && extra) out.push([w[0], extra].join(" "));
+    return [...new Set(out)];
+  };
+  async function osmFetch(q) {
+    const u = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&limit=8&accept-language=de&countrycodes=de,ch,at&q=" + encodeURIComponent(q);
+    const r = await fetch(u, {headers: {"Accept": "application/json"}});
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }
+  const osmStreet = a => [a.road || a.pedestrian || a.footway || a.square || a.place, a.house_number].filter(Boolean).join(" ");
+  const osmOrt = a => a.city || a.town || a.village || a.municipality || a.suburb || "";
+  const osmTel = x => { const t = (x && (x.phone || x["contact:phone"] || x["contact:mobile"])) || ""; return t.split(";")[0].trim(); };
+  function osmItem(r) {
+    const a = r.address || {}, x = r.extratags || {}, nd = r.namedetails || {};
+    return {
+      name: nd.name || r.name || "", kette: x.brand || "", strasse: osmStreet(a), plz: a.postcode || "", ort: osmOrt(a),
+      tel: osmTel(x), email: (x.email || x["contact:email"] || "").split(";")[0].trim(),
+      art: ({supermarket: "Supermarkt", convenience: "Laden", department_store: "Warenhaus", butcher: "Metzgerei", bakery: "Bäckerei", greengrocer: "Gemüse", farm: "Hofladen", marketplace: "Markt", chemist: "Drogerie", kiosk: "Kiosk", restaurant: "Restaurant", cafe: "Café", hotel: "Hotel"})[r.type] || ""
+    };
+  }
+  async function addrSearch() {
+    const box = $("osmBox"), btn = $("btnAddrSearch");
+    if (!$("f_name").value.trim()) { $("f_name").focus(); box.classList.remove("hidden"); box.innerHTML = `<div class="osnone">Zuerst oben einen Namen eingeben, z.B. «EDEKA Harsefeld».</div>`; return; }
+    if (!navigator.onLine) { box.classList.remove("hidden"); box.innerHTML = `<div class="osnone">Ohne Internet geht die Suche nicht.</div>`; return; }
+    btn.disabled = true; box.classList.remove("hidden"); box.innerHTML = `<div class="osnone">Suche läuft …</div>`;
+    let res = [];
+    try {
+      for (const q of osmQueries()) {
+        res = await osmFetch(q);
+        if (res.length) break;
+        await new Promise(r => setTimeout(r, 1100));   // Nutzungsregel: höchstens 1 Anfrage pro Sekunde
+      }
+      // Geschäfte zuerst, reine Orte/Strassen nach hinten
+      res.sort((a, b) => (b.category === "shop" || b.category === "amenity") - (a.category === "shop" || a.category === "amenity"));
+      osmResults = res.map(osmItem).filter(o => o.strasse);
+      const head = `<div class="oshead"><span>${osmResults.length ? "Antippen zum Übernehmen:" : ""}</span><button type="button" class="linkbtn" id="osmClose">Schliessen</button></div>`;
+      box.innerHTML = head + (osmResults.length
+        ? osmResults.map((o, i) => `<button type="button" class="osmres" data-osm="${i}"><b>${esc(o.name || o.kette || "Ohne Namen")}${o.art ? ` <span class="oa">· ${esc(o.art)}</span>` : ""}</b><span class="oa">${esc([o.strasse, [o.plz, o.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "))}${o.tel ? " · Tel. " + esc(o.tel) : ""}</span></button>`).join("")
+        : `<div class="osnone">Nichts gefunden. Versuche es kürzer, z.B. nur Kette und Ort («EDEKA Harsefeld»), oder nutze «Im Netz suchen».</div>`)
+        + `<div class="osfoot">Daten © OpenStreetMap-Mitwirkende</div>`;
+    } catch {
+      box.innerHTML = `<div class="osnone">Die Suche hat gerade nicht geklappt. Bitte in einem Moment nochmals versuchen oder «Im Netz suchen» nutzen.</div>`;
+    } finally { btn.disabled = false; }
+  }
+  $("btnAddrSearch").addEventListener("click", addrSearch);
+  $("osmBox").addEventListener("click", e => {
+    if (e.target.id === "osmClose") { $("osmBox").classList.add("hidden"); return; }
+    const b = e.target.closest("[data-osm]"); if (!b) return;
+    const o = osmResults[+b.dataset.osm]; if (!o) return;
+    const n = applyParsed({...o, name: ""});
+    $("osmBox").classList.add("hidden");
+    $("parseMsg").textContent = "";
+    status(n ? `${n} ${n === 1 ? "Feld" : "Felder"} übernommen${o.tel ? "" : " (keine Telefonnummer gefunden)"}. Bitte kurz prüfen.` : "Die Angaben stehen schon so in der Maske.");
+    setTimeout(() => status(""), 4000);
+  });
+  $("btnClip").addEventListener("click", async () => {
+    const msg = $("parseMsg");
+    try {
+      const t = await navigator.clipboard.readText();
+      if (!t || !t.trim()) { msg.textContent = "Die Zwischenablage ist leer. Zuerst in Google Maps «Teilen» → «Kopieren» antippen."; return; }
+      $("f_paste").value = t.trim(); $("btnParse").click();
+    } catch { msg.textContent = "Kein Zugriff auf die Zwischenablage. Tippe lange ins Feld oben und wähle «Einfügen»."; $("f_paste").focus(); }
+  });
+
   // ---------- Infos einfügen -> Maske ----------
   let sampleFn = null;
   // ---------- Export / Import ----------
@@ -1670,6 +1756,7 @@ textarea{resize:vertical;min-height:96px}
   });
 
   function parseLocal(t) {
+    t = String(t).replace(/https?:\/\/\S+/g, " ");
     const out = {};
     // Deutsche PLZ (5-stellig), Schweizer (4-stellig) als Ausweichlösung
     const plzOrt = t.match(/(?:D-|DE-|CH-)?\b(\d{5}|\d{4})\s+([A-ZÄÖÜ][\wäöüÄÖÜßéèàâ\.\-\/ ]+?)(?=\s*(?:,|\n|$|Deutschland|Germany|Schweiz))/m);
@@ -1727,7 +1814,7 @@ textarea{resize:vertical;min-height:96px}
     }
     if (!parsed) parsed = parseLocal(text);
     const n = applyParsed(parsed);
-    msg.textContent = n ? `${n} ${n === 1 ? "Feld" : "Felder"} übernommen${viaClaude ? "" : " (einfache Erkennung)"}. Bitte kurz prüfen.`
+    msg.textContent = n ? `${n} ${n === 1 ? "Feld" : "Felder"} übernommen. Bitte kurz prüfen.`
       : "Nichts Neues erkannt. Prüfe den eingefügten Text oder trage die Angaben von Hand ein.";
     btn.disabled = false;
   });

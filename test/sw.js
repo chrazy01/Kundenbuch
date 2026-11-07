@@ -1,6 +1,6 @@
 // Offline-Speicher für die App-Dateien. Daten selbst speichert Firebase separat auf dem Gerät.
 // Bei jeder neuen Version die Nummer erhöhen, damit Geräte die neuen Dateien laden.
-const CACHE = "kundenbuch-test-1";
+const CACHE = "kundenbuch-test-1794047794";
 const FILES = ["./", "./index.html", "./fb.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
