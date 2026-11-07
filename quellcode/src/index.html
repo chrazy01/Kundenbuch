@@ -509,7 +509,7 @@ textarea{resize:vertical;min-height:96px}
         </div>
         <div class="field full paste">
           <label for="f_paste">Infos einfügen</label>
-          <textarea id="f_paste" rows="3" placeholder="Tablet: in Google Maps beim Markt auf «Teilen» → «Kopieren», dann hier «Aus Zwischenablage einfügen»"></textarea>
+          <textarea id="f_paste" rows="3" placeholder="Tablet: in der Google-Maps-App die Adresse bzw. Telefonnummer lange antippen (wird kopiert), dann hier «Aus Zwischenablage einfügen»"></textarea>
           <div class="row" style="margin-top:8px;align-items:center">
             <button class="btn small" type="button" id="btnClip">Aus Zwischenablage einfügen</button>
             <button class="btn primary small" type="button" id="btnParse">In Maske übertragen</button>
@@ -1792,6 +1792,10 @@ textarea{resize:vertical;min-height:96px}
   $("btnParse").addEventListener("click", async () => {
     const text = $("f_paste").value.trim(), msg = $("parseMsg");
     if (!text) { msg.textContent = "Zuerst Text einfügen."; $("f_paste").focus(); return; }
+    if (!text.replace(/https?:\/\/\S+/g, "").trim()) {
+      msg.textContent = "Das ist nur ein Link, daraus kann die App keine Adresse lesen. Ich suche stattdessen mit dem Namen oben …";
+      $("f_paste").value = ""; addrSearch(); return;
+    }
     const btn = $("btnParse"); btn.disabled = true;
     let parsed = null, viaClaude = false;
     if (sampleFn) {
