@@ -194,7 +194,7 @@ textarea{resize:vertical;min-height:96px}
 .ev .evnote{display:block}
 .ev .typ{font-size:.95rem;font-weight:700;color:var(--ink)}
 /* Dialoge */
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;padding:16px;z-index:10}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;padding:16px;z-index:30}
 .modal .box{background:var(--surface);border-radius:16px;padding:20px;width:100%;max-width:620px;max-height:90vh;overflow:auto}
 .modal h2{font-size:1.25rem;margin-bottom:12px}
 .modal .field{margin-bottom:12px}
@@ -210,6 +210,30 @@ textarea{resize:vertical;min-height:96px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .exportbox{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:28px;padding-top:16px;border-top:1px solid var(--line)}
 .exportbox .hint{color:var(--page-muted);margin:0}
+/* Zertifikate */
+.zgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+.zcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px;cursor:pointer;display:grid;gap:8px;text-align:left;color:var(--ink);font:inherit}
+.zcard:hover{border-color:var(--ink)}
+.zcard:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.zcard .zimg{aspect-ratio:3/4;background:#fff;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
+.zcard .zimg img{width:100%;height:100%;object-fit:contain;display:block}
+.zcard .zt{font-weight:700;overflow-wrap:anywhere;padding:0 4px 4px;line-height:1.25}
+.zcard .zt.leer{color:var(--muted);font-weight:400}
+.zadd{border:2px dashed var(--line);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:200px;color:var(--muted);font-weight:700;cursor:pointer;text-align:center;padding:12px}
+.zadd:hover{border-color:var(--ink);color:var(--ink)}
+.zhint{color:var(--page-muted);font-size:.92rem;margin:0 0 14px}
+#zDrop.dragover{outline:3px dashed var(--focus);outline-offset:6px;border-radius:12px}
+.zshow{position:fixed;inset:0;z-index:20;background:#111;color:#fff;display:flex;flex-direction:column}
+.zshow .zsbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#000}
+.zshow .zsbar .zst{flex:1;font-weight:700;font-size:1.1rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zshow .zsbar .btn{background:transparent;color:#fff;border-color:rgba(255,255,255,.35);min-height:42px}
+.zshow .zsstage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;padding:10px;touch-action:pan-y pinch-zoom}
+.zshow .zsstage img{max-width:100%;max-height:100%;object-fit:contain;background:#fff;border-radius:4px;user-select:none;-webkit-user-drag:none}
+.zshow .zsnav{position:absolute;top:50%;transform:translateY(-50%);width:56px;height:56px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:28px;cursor:pointer}
+.zshow .zsnav:focus-visible,.zshow .btn:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.zshow .zsprev{left:12px}.zshow .zsnext{right:12px}
+.zshow .zscount{text-align:center;padding:8px;color:#bbb;font-variant-numeric:tabular-nums;font-size:.92rem}
+.testbanner{background:#d32f2f;color:#fff;text-align:center;font-weight:700;padding:6px 12px;font-size:.92rem;letter-spacing:.03em}
 /* Login */
 #vLogin{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px 16px}
 .loginbox{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px 24px;width:100%;max-width:400px;box-shadow:0 10px 30px rgba(0,0,0,.12);border-top:6px solid var(--brand)}
@@ -306,6 +330,7 @@ textarea{resize:vertical;min-height:96px}
   <section id="vList">
     <div class="top">
       <h1><span class="logo-wrap"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="44" height="44" aria-hidden="true" class="logo"> <circle cx="50" cy="50" r="48" fill="#1d1d1b"/> <ellipse cx="36.5" cy="47" rx="14.5" ry="27.5" transform="rotate(9 36.5 47)" fill="#1d1d1b" stroke="#fff" stroke-width="1.9"/> <ellipse cx="59.5" cy="54.5" rx="20" ry="25.5" transform="rotate(21 59.5 54.5)" fill="#fed100" stroke="#fff" stroke-width="2"/> <path d="M66.8 34 C71 36.4 73 42 72.4 49.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/> </svg></span> Kundenbuch</h1>
+      <button class="btn" id="btnZert" type="button">Zertifikate</button>
       <button class="btn" id="btnCal" type="button">Kalender</button>
       <button class="btn" id="btnTour" type="button">Tour</button>
       <button class="btn primary" id="btnNew" type="button">+ Neuer Kunde</button>
@@ -331,9 +356,21 @@ textarea{resize:vertical;min-height:96px}
       <button class="btn small" type="button" id="btnExport">Daten exportieren</button>
       <label class="btn small" for="importFile" style="cursor:pointer">Daten importieren</label>
       <input type="file" id="importFile" accept=".json,application/json" class="sr">
-      <span class="hint" id="exportMsg" role="status">Export: Sicherungsdatei mit allen Kunden, Notizen, Terminen, Bildern und der Tour. Import: eine solche Datei einlesen.</span>
+      <span class="hint" id="exportMsg" role="status">Export: Sicherungsdatei mit allen Kunden, Notizen, Terminen, Bildern, Zertifikaten und der Tour. Import: eine solche Datei einlesen.</span>
     </div>
     <div class="account"><span id="accountMail"></span><button class="btn small" type="button" id="btnLogout">Abmelden</button></div>
+  </section>
+
+  <!-- ZERTIFIKATE -->
+  <section id="vZert" class="hidden">
+    <div class="top">
+      <button class="btn small" type="button" id="zBack">← Alle Kunden</button>
+      <h1 style="justify-content:flex-start">Zertifikate</h1>
+      <label class="btn primary" for="zFile" style="cursor:pointer">+ Hinzufügen</label>
+      <input type="file" id="zFile" accept="image/*" multiple class="sr">
+    </div>
+    <p class="zhint">Antippen zum Vorzeigen im Vollbild. Neue Zertifikate: «+ Hinzufügen», ein Bild hineinziehen oder mit Strg+V einfügen.</p>
+    <div id="zDrop"><div class="zgrid" id="zGrid"></div></div>
   </section>
 
   <!-- KALENDER -->
@@ -556,6 +593,34 @@ textarea{resize:vertical;min-height:96px}
   </div>
 </div>
 
+<!-- Zertifikat vorzeigen -->
+<div class="zshow hidden" id="zShow" role="dialog" aria-modal="true" aria-label="Zertifikat">
+  <div class="zsbar">
+    <span class="zst" id="zsTitle"></span>
+    <button class="btn small" type="button" id="zsEdit">Bearbeiten</button>
+    <button class="btn small" type="button" id="zsClose">Schliessen ✕</button>
+  </div>
+  <div class="zsstage" id="zsStage">
+    <img id="zsImg" alt="">
+    <button class="zsnav zsprev" type="button" id="zsPrev" aria-label="Vorheriges Zertifikat">‹</button>
+    <button class="zsnav zsnext" type="button" id="zsNext" aria-label="Nächstes Zertifikat">›</button>
+  </div>
+  <div class="zscount" id="zsCount"></div>
+</div>
+<div class="modal hidden" id="zEditModal" role="dialog" aria-modal="true" aria-labelledby="zeHead">
+  <div class="box">
+    <h2 id="zeHead">Zertifikat bearbeiten</h2>
+    <div class="field"><label for="zeTitel">Bezeichnung</label><input id="zeTitel" placeholder="z.B. KAT-Zertifikat 2026, Bio-Siegel" autocomplete="off"></div>
+    <div class="formacts">
+      <button class="btn danger" type="button" id="zeDelete">Löschen</button>
+      <button class="btn" type="button" id="zeLeft">← Nach vorne</button>
+      <button class="btn" type="button" id="zeRight">Nach hinten →</button>
+      <button class="btn" type="button" id="zeCancel">Abbrechen</button>
+      <button class="btn primary" type="button" id="zeSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- Besuch-Dialog (Tagestour) -->
 <div class="modal hidden" id="visitModal" role="dialog" aria-modal="true" aria-labelledby="vmTitle">
   <form class="box" id="visitForm" novalidate>
@@ -605,7 +670,8 @@ textarea{resize:vertical;min-height:96px}
   const STATUS = ["Potenziell", "Angebot", "Kunde", "Kein Interesse"];
   const statusOf = k => STATUS.includes(k.status) ? k.status : "Potenziell";
   let stFilter = "";
-  let db = null, colK = null, colT = null, colB = null;
+  let db = null, colK = null, colT = null, colB = null, colZ = null, zUnsub = null;
+  let zerts = [], zLoaded = false, zIdx = -1;
   let alleKunden = [], kunden = [], termine = [], bilder = {};   // kunden = ohne Papierkorb; bilder: kundeId -> [{id,data,datum}]
   function syncKunden() {
     kunden = alleKunden.filter(k => !k.geloescht);
@@ -671,7 +737,7 @@ textarea{resize:vertical;min-height:96px}
   // ---------- Ansichten ----------
   function show(v) {
     view = v;
-    ["vList","vCal","vDetail","vForm","vTrash","vTour"].forEach(x => $(x).classList.toggle("hidden", x !== v));
+    ["vList","vCal","vDetail","vForm","vTrash","vTour","vZert"].forEach(x => $(x).classList.toggle("hidden", x !== v));
     window.scrollTo(0, 0);
   }
   function rerender() {
@@ -1308,28 +1374,42 @@ textarea{resize:vertical;min-height:96px}
   });
 
   // ---------- Bilder verkleinern ----------
-  function compressImage(file) {
+  function compressImage(file, opt) {
+    const o = Object.assign({max: 1400, limit: 220000, hard: 250000}, opt || {});
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file), img = new Image();
       img.onload = () => {
         URL.revokeObjectURL(url);
-        let max = 1400, q = 0.75, data = "";
+        let max = o.max, q = o.max > 1400 ? 0.82 : 0.75, data = "";
         for (let i = 0; i < 8; i++) {
           const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
           const c = document.createElement("canvas");
           c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
           c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
           data = c.toDataURL("image/jpeg", q);
-          if (data.length < 220000) return resolve(data);
+          if (data.length < o.limit) return resolve(data);
           if (q > 0.5) q -= 0.1; else max = Math.round(max * 0.8);
         }
-        data.length < 250000 ? resolve(data) : reject(new Error("too big"));
+        data.length < o.hard ? resolve(data) : reject(new Error("too big"));
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unreadable")); };
       img.src = url;
     });
   }
 
+  function makeThumbContain(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, 420 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+        const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", 0.72));
+      };
+      img.onerror = reject; img.src = dataUrl;
+      setTimeout(() => reject(new Error("timeout")), 5000);
+    });
+  }
   function makeThumb(dataUrl) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -1391,6 +1471,7 @@ textarea{resize:vertical;min-height:96px}
   document.addEventListener("paste", e => {
     const t = e.target;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (view === "vZert") { const zf = imageFilesFrom(e.clipboardData); if (zf.length) { e.preventDefault(); addZerts(zf); } else noImgMsg("paste"); return; }
     if (view !== "vDetail" && view !== "vForm") return;
     const files = imageFilesFrom(e.clipboardData); if (!files.length) return;
     e.preventDefault();
@@ -1549,18 +1630,19 @@ textarea{resize:vertical;min-height:96px}
     if (!colK) { msg.textContent = "Noch nicht verbunden. Bitte kurz warten und nochmals versuchen."; return; }
     btn.disabled = true; msg.textContent = "Daten werden gesammelt …";
     try {
-      const bSnap = await colB.get();
+      const bSnap = await colB.get(), zSnap = await colZ.get();
       const exp = {
         format: "kundenbuch-export", version: 1, exportiertAm: new Date().toISOString(),
         kunden: alleKunden.map(k => ({...k})), termine: termine.map(t => ({...t})),
         bilder: bSnap.docs.filter(d => d.exists).map(d => ({id: d.id, ...d.data()})),
-        tour: {stops: (tour.stops || []).map(st => ({...st}))}
+        tour: {stops: (tour.stops || []).map(st => ({...st}))},
+        zertifikate: zSnap.docs.filter(d => d.exists).map(d => ({id: d.id, ...d.data()}))
       };
       const blob = new Blob([JSON.stringify(exp)], {type: "application/json"});
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
       a.download = "kundenbuch-export-" + todayStr() + ".json"; document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-      msg.textContent = `Export gespeichert: ${exp.kunden.length} Kunden, ${exp.termine.length} Termine, ${exp.bilder.length} Bilder (${(blob.size / 1048576).toFixed(1)} MB).`;
+      msg.textContent = `Export gespeichert: ${exp.kunden.length} Kunden, ${exp.termine.length} Termine, ${exp.bilder.length} Bilder, ${exp.zertifikate.length} Zertifikate (${(blob.size / 1048576).toFixed(1)} MB).`;
     } catch { msg.textContent = "Export hat nicht geklappt. Bitte nochmals versuchen."; }
     finally { btn.disabled = false; }
   });
@@ -1570,15 +1652,16 @@ textarea{resize:vertical;min-height:96px}
     let d;
     try { d = JSON.parse(await f.text()); } catch { msg.textContent = "Diese Datei konnte nicht gelesen werden. Bitte die Datei kundenbuch-export….json wählen."; return; }
     if (!d || d.format !== "kundenbuch-export" || !Array.isArray(d.kunden)) { msg.textContent = "Das ist keine Kundenbuch-Exportdatei."; return; }
-    const nK = d.kunden.length, nT = (d.termine || []).length, nB = (d.bilder || []).length;
-    if (!(await confirmBox("Daten importieren?", `${nK} Kunden, ${nT} Termine und ${nB} Bilder werden eingelesen. Einträge mit gleicher ID werden dabei überschrieben, andere bleiben erhalten.`, "Importieren"))) return;
+    const nK = d.kunden.length, nT = (d.termine || []).length, nB = (d.bilder || []).length, nZ = (d.zertifikate || []).length;
+    if (!(await confirmBox("Daten importieren?", `${nK} Kunden, ${nT} Termine, ${nB} Bilder${nZ ? ` und ${nZ} Zertifikate` : ""} werden eingelesen. Einträge mit gleicher ID werden dabei überschrieben, andere bleiben erhalten.`, "Importieren"))) return;
     const clean = o => { const {id, ...rest} = o; return JSON.parse(JSON.stringify(rest)); };
-    let done = 0; const total = nK + nT + nB + 1;
+    let done = 0; const total = nK + nT + nB + nZ + 1;
     const step = () => { done++; msg.textContent = `Import läuft … ${Math.round(done / total * 100)} %`; };
     try {
       for (const k of d.kunden) { if (k && k.id) await colK.doc(String(k.id)).set(clean(k)); step(); }
       for (const t of d.termine || []) { if (t && t.id) await colT.doc(String(t.id)).set(clean(t)); step(); }
       for (const b of d.bilder || []) { if (b && b.id) await colB.doc(String(b.id)).set(clean(b)); step(); }
+      for (const z of d.zertifikate || []) { if (z && z.id) await colZ.doc(String(z.id)).set(clean(z)); step(); }
       if (d.tour && Array.isArray(d.tour.stops)) await tourRef.set({stops: JSON.parse(JSON.stringify(d.tour.stops)), geaendert: new Date().toISOString()});
       step();
       msg.textContent = `Import fertig: ${nK} Kunden, ${nT} Termine, ${nB} Bilder. Bei schwachem Netz kann das Hochladen der Bilder noch etwas dauern, lass die App dafür offen.`;
@@ -1668,7 +1751,119 @@ textarea{resize:vertical;min-height:96px}
     if (!$("noteModal").classList.contains("hidden")) closeNote();
     if (!$("terminModal").classList.contains("hidden")) closeTermin();
     if (!$("imgModal").classList.contains("hidden")) $("imgModal").classList.add("hidden");
-    if (!$("confirmModal").classList.contains("hidden")) $("cmNo").click();
+    if (!$("confirmModal").classList.contains("hidden")) { $("cmNo").click(); return; }
+    if (!$("zEditModal").classList.contains("hidden")) { $("zEditModal").classList.add("hidden"); return; }
+    if (!$("zShow").classList.contains("hidden")) closeZShow();
+  });
+  document.addEventListener("keydown", e => {
+    if ($("zShow").classList.contains("hidden") || !$("zEditModal").classList.contains("hidden")) return;
+    if (e.key === "ArrowLeft") zStep(-1); if (e.key === "ArrowRight") zStep(1);
+  });
+
+  // ---------- Zertifikate ----------
+  const zSort = list => list.sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0) || String(a.datum).localeCompare(String(b.datum)));
+  function startZerts() {
+    if (zUnsub || !colZ) return;
+    zUnsub = colZ.onSnapshot(snap => {
+      zerts = zSort(snap.docs.filter(d => d.exists).map(d => ({id: d.id, ...d.data()})));
+      zLoaded = true;
+      if (view === "vZert") renderZerts();
+      if (!$("zShow").classList.contains("hidden")) renderZShow();
+    }, () => { zLoaded = true; if (view === "vZert") renderZerts(); status("Zertifikate konnten nicht geladen werden. Bitte Internetverbindung prüfen.", true); });
+    unsubs.push(() => { if (zUnsub) zUnsub(); zUnsub = null; });
+  }
+  function openZerts() { startZerts(); show("vZert"); renderZerts(); }
+  $("btnZert").addEventListener("click", openZerts);
+  $("zBack").addEventListener("click", () => { show("vList"); renderList(); });
+  function renderZerts() {
+    const add = `<label class="zadd" for="zFile"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Zertifikat hinzufügen</label>`;
+    if (!zLoaded) { $("zGrid").innerHTML = `<div class="empty" style="grid-column:1/-1">Zertifikate werden geladen …</div>`; return; }
+    $("zGrid").innerHTML = zerts.map((z, i) => `<button type="button" class="zcard" data-z="${i}"><span class="zimg"><img src="${esc(z.thumb || z.data)}" alt="" loading="lazy"></span><span class="zt${z.titel ? "" : " leer"}">${esc(z.titel || "Ohne Bezeichnung")}</span></button>`).join("") + add;
+  }
+  $("zGrid").addEventListener("click", e => { const c = e.target.closest("[data-z]"); if (c) openZShow(+c.dataset.z); });
+  $("zFile").addEventListener("change", ev => { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) addZerts(fs); });
+  (() => {
+    const el = $("zDrop");
+    el.addEventListener("dragover", e => { e.preventDefault(); el.classList.add("dragover"); });
+    el.addEventListener("dragleave", e => { if (!el.contains(e.relatedTarget)) el.classList.remove("dragover"); });
+    el.addEventListener("drop", e => {
+      e.preventDefault(); e.stopPropagation(); el.classList.remove("dragover");
+      const files = imageFilesFrom(e.dataTransfer);
+      if (files.length) addZerts(files); else if (hasOnlyLink(e.dataTransfer)) noImgMsg("drop");
+    });
+  })();
+  async function addZerts(files) {
+    if (!colZ) return;
+    let bad = 0, n = 0;
+    for (const f of files) {
+      status(`Zertifikat wird vorbereitet … (${++n} von ${files.length})`);
+      try {
+        const data = await compressImage(f, {max: 2200, limit: 800000, hard: 900000});
+        const thumb = await makeThumbContain(data);
+        const id = newId(), pos = (zerts.length ? Math.max(...zerts.map(z => z.pos ?? 0)) : 0) + 1;
+        const titel = String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/^(image|bild|img|screenshot)[\s_-]*\d*$/i, "").replace(/[_]+/g, " ").trim();
+        const doc = {titel, data, thumb, pos, datum: new Date().toISOString()};
+        zerts = zSort(zerts.filter(z => z.id !== id).concat([{id, ...doc}])); renderZerts();
+        await queueWrite("z_" + id, () => colZ.doc(id).set(doc));
+      } catch (e) { if (!e || !e.code) bad++; }
+    }
+    status(bad ? `${bad} Bild(er) konnten nicht gelesen werden. Bitte JPG- oder PNG-Bilder wählen.` : "", !!bad);
+  }
+  function openZShow(i) { zIdx = i; renderZShow(); $("zShow").classList.remove("hidden"); document.body.style.overflow = "hidden"; $("zsClose").focus(); }
+  function closeZShow() { $("zShow").classList.add("hidden"); document.body.style.overflow = ""; zIdx = -1; }
+  function renderZShow() {
+    if (!zerts.length) { closeZShow(); return; }
+    zIdx = Math.max(0, Math.min(zIdx, zerts.length - 1));
+    const z = zerts[zIdx];
+    $("zsImg").src = z.data; $("zsImg").alt = z.titel || "Zertifikat";
+    $("zsTitle").textContent = z.titel || "Zertifikat";
+    $("zsCount").textContent = zerts.length > 1 ? `${zIdx + 1} / ${zerts.length}` : "";
+    $("zsPrev").classList.toggle("hidden", zerts.length < 2); $("zsNext").classList.toggle("hidden", zerts.length < 2);
+  }
+  function zStep(d) { if (zerts.length < 2) return; zIdx = (zIdx + d + zerts.length) % zerts.length; renderZShow(); }
+  $("zsPrev").addEventListener("click", () => zStep(-1));
+  $("zsNext").addEventListener("click", () => zStep(1));
+  $("zsClose").addEventListener("click", closeZShow);
+  (() => {   // Wischen auf dem Tablet
+    let x0 = null, y0 = 0, multi = false;
+    const st = $("zsStage");
+    st.addEventListener("touchstart", e => { multi = e.touches.length > 1; if (!multi) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } }, {passive: true});
+    st.addEventListener("touchend", e => {
+      if (x0 === null || multi || (window.visualViewport && window.visualViewport.scale > 1.05)) { x0 = null; return; }
+      const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) zStep(dx < 0 ? 1 : -1);
+    }, {passive: true});
+  })();
+  $("zsEdit").addEventListener("click", () => {
+    const z = zerts[zIdx]; if (!z) return;
+    $("zeTitel").value = z.titel || "";
+    $("zeLeft").disabled = zIdx === 0; $("zeRight").disabled = zIdx === zerts.length - 1;
+    $("zEditModal").classList.remove("hidden"); setTimeout(() => $("zeTitel").focus(), 30);
+  });
+  $("zeTitel").addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
+  $("zeCancel").addEventListener("click", () => $("zEditModal").classList.add("hidden"));
+  $("zeSave").addEventListener("click", async () => {
+    const z = zerts[zIdx]; $("zEditModal").classList.add("hidden"); if (!z) return;
+    const titel = $("zeTitel").value.trim(); if (titel === (z.titel || "")) return;
+    zerts = zerts.map(x => x.id === z.id ? {...x, titel} : x); renderZShow(); renderZerts();
+    await queueWrite("z_" + z.id, () => colZ.doc(z.id).update({titel})).catch(() => {});
+  });
+  async function zMove(d) {
+    const j = zIdx + d; if (j < 0 || j >= zerts.length) return;
+    const titel = $("zeTitel").value.trim();
+    const list = zerts.slice(); const [m] = list.splice(zIdx, 1); list.splice(j, 0, m);
+    list.forEach((z, i) => { z.pos = i + 1; }); if (titel !== (m.titel || "")) m.titel = titel;
+    zerts = list; zIdx = j; $("zEditModal").classList.add("hidden"); renderZShow(); renderZerts();
+    for (const z of list) await queueWrite("z_" + z.id, () => colZ.doc(z.id).update(z.id === m.id ? {pos: z.pos, titel: m.titel || ""} : {pos: z.pos})).catch(() => {});
+  }
+  $("zeLeft").addEventListener("click", () => zMove(-1));
+  $("zeRight").addEventListener("click", () => zMove(1));
+  $("zeDelete").addEventListener("click", async () => {
+    const z = zerts[zIdx]; if (!z) return;
+    $("zEditModal").classList.add("hidden");
+    if (!(await confirmBox("Zertifikat löschen?", `«${z.titel || "Ohne Bezeichnung"}» wird endgültig gelöscht.`))) return;
+    zerts = zerts.filter(x => x.id !== z.id); renderZShow(); renderZerts();
+    await queueWrite("z_" + z.id, () => colZ.doc(z.id).delete()).catch(() => {});
   });
 
   // ---------- Login & Daten verbinden (Firebase) ----------
@@ -1713,12 +1908,13 @@ textarea{resize:vertical;min-height:96px}
     unsubs.forEach(u => { try { u(); } catch {} }); unsubs = [];
     clearTimeout(loadTimer);
     alleKunden = []; kunden = []; termine = []; bilder = {}; tour = {stops: []};
-    colK = colT = colB = tourRef = null; currentId = null;
+    colK = colT = colB = colZ = tourRef = null; currentId = null; zUnsub = null; zerts = []; zLoaded = false;
+    if (!$("zShow").classList.contains("hidden")) closeZShow();
   }
   function connect(FB, user) {
     $("accountMail").textContent = "Angemeldet als " + (user.email || "");
     const root = FB.userRoot(user.uid);
-    colK = root.collection("kunden"); colT = root.collection("termine"); colB = root.collection("bilder");
+    colK = root.collection("kunden"); colT = root.collection("termine"); colB = root.collection("bilder"); colZ = root.collection("zertifikate");
     tourRef = root.collection("meta").doc("tour");
     status("Kunden werden geladen …");
     loadTimer = setTimeout(() => status(navigator.onLine ? "Verbindung langsam: angezeigte Daten sind evtl. nicht aktuell." : ""), 10000);

@@ -15,4 +15,4 @@ Eigene Web-App für die Akquise: Kunden, Notizen, Termine, Bilder, Kalender und 
 | `sw.js` | Offline-Speicher für die App-Dateien |
 | `manifest.webmanifest`, `*.png` | Angaben und Symbole zum Installieren als App |
 
-Bei einer neuen Version: Dateien ersetzen und in `sw.js` die Versionsnummer (`kundenbuch-v1`) erhöhen.
+Bei einer neuen Version: Dateien ersetzen und in `sw.js` die Versionsnummer (`kundenbuch-vN`) erhöhen.
