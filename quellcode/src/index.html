@@ -520,8 +520,8 @@ textarea{resize:vertical;min-height:96px}
         <div class="field"><label for="f_kundennr">Kundennummer</label><input id="f_kundennr" name="kundennr" inputmode="numeric" autocomplete="off"><p class="hint" id="nrMsg" role="status">Nächste freie Nummer ist vorgeschlagen, du kannst sie ändern.</p></div>
         <div class="field"><label for="f_regie">Regiemarkt</label><select id="f_regie" name="regie"><option value="">Bitte wählen</option><option>Ja</option><option>Nein</option></select></div>
         <div class="field" id="f_kaufmannWrap"><label for="f_kaufmann">Kaufmann / Inhaber</label><input id="f_kaufmann" name="kaufmann" placeholder="Vor- und Nachname"></div>
+        <div class="field"><label for="f_gln">GLN-Nummer</label><input id="f_gln" name="gln" inputmode="numeric" autocomplete="off" placeholder="13-stellig, z.B. 4012345000009"><p class="hint" id="glnMsg" role="status"></p></div>
         <div class="field"><label for="f_status">Status</label><select id="f_status" name="status"><option>Potenziell</option><option>Angebot</option><option>Kunde</option><option>Kein Interesse</option></select></div>
-        <div class="field"></div>
         <div class="field full"><label for="f_strasse">Strasse und Nr.</label><input id="f_strasse" name="strasse" autocomplete="street-address"></div>
         <div class="field"><label for="f_plz">PLZ</label><input id="f_plz" name="plz" inputmode="numeric" autocomplete="postal-code"></div>
         <div class="field"><label for="f_ort">Ort</label><input id="f_ort" name="ort" autocomplete="address-level2"></div>
@@ -680,7 +680,7 @@ textarea{resize:vertical;min-height:96px}
   const $ = id => document.getElementById(id);
   const WD = ["Mo","Di","Mi","Do","Fr","Sa","So"];
   const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-  const NR_START = 1001;
+  const NR_START = 1;
   const STATUS = ["Potenziell", "Angebot", "Kunde", "Kein Interesse"];
   const statusOf = k => STATUS.includes(k.status) ? k.status : "Potenziell";
   let stFilter = "";
@@ -772,7 +772,7 @@ textarea{resize:vertical;min-height:96px}
 
   // ---------- Liste ----------
   function searchText(k) {
-    return norm([k.name, statusOf(k), k.kette, betriebsform(k), k.kundennr, k.strasse, k.plz, k.ort, k.leiter, k.stv, k.tel, k.email, ...(k.notizen || []).map(n => n.text)].join(" "));
+    return norm([k.name, statusOf(k), k.kette, betriebsform(k), k.kundennr, k.gln, k.strasse, k.plz, k.ort, k.leiter, k.stv, k.tel, k.email, ...(k.notizen || []).map(n => n.text)].join(" "));
   }
   function renderStatusbar(base) {
     const cnt = st => base.filter(k => statusOf(k) === st).length;
@@ -958,6 +958,7 @@ textarea{resize:vertical;min-height:96px}
       ["Adresse", esc(adresse(k))],
       ["Betriebsform", esc(k.regie === "Ja" ? "Regiemarkt" : k.regie === "Nein" ? "Kein Regiemarkt" : "")],
       ["Kaufmann / Inhaber", esc(k.regie === "Nein" ? k.kaufmann : "")],
+      ["GLN", esc(k.gln)],
       ["Filialleiter/in", esc(k.leiter)],
       ["Stellvertretung", esc(k.stv)],
       ["Telefon", k.tel ? `<a href="tel:${esc(k.tel.replace(/[^\d+]/g, ""))}">${esc(k.tel)}</a>` : ""],
@@ -1494,8 +1495,9 @@ textarea{resize:vertical;min-height:96px}
   });
 
   // ---------- Maske ----------
-  const FIELDS = ["name","kette","kundennr","strasse","plz","ort","leiter","stv","tel","email","erstDatum","erstZeit","erstZeitBis","status","regie","kaufmann"];
-  const nextKundennr = () => Math.max(NR_START - 1, ...alleKunden.map(k => parseInt(k.kundennr) || 0)) + 1;
+  const FIELDS = ["name","kette","kundennr","strasse","plz","ort","leiter","stv","tel","email","erstDatum","erstZeit","erstZeitBis","status","regie","kaufmann","gln"];
+  // kleinste freie Nummer ab 1 (auch Papierkorb zählt als belegt)
+  const nextKundennr = () => { const used = new Set(alleKunden.map(k => String(k.kundennr || "").trim())); let n = NR_START; while (used.has(String(n))) n++; return n; };
   const formItem = b => `<div class="imgitem"><div class="thumb"><img src="${b.data}" alt=""><button type="button" class="x" data-rm="${esc(b.id)}" aria-label="Bild entfernen">×</button></div><input class="capin" data-cap="${esc(b.id)}" id="cap_${esc(b.id)}" value="${esc(b.notiz || "")}" placeholder="Notiz zum Bild" aria-label="Notiz zum Bild">${b.rolle === "titel" ? "" : `<button type="button" class="linkbtn" data-totitel="${esc(b.id)}" style="text-align:left;padding:0">Als Titelbild</button>`}</div>`;
   function renderFormGallery() {
     const {titel, more} = splitImgs(formImgs);
@@ -1537,14 +1539,14 @@ textarea{resize:vertical;min-height:96px}
   let copySourceId = null;
   function openForm(id, copyFrom) {
     editingId = id; copySourceId = copyFrom ? copyFrom.id : null;
-    const k = id ? kById(id) : copyFrom ? {...copyFrom, name: (copyFrom.name || "") + " (Kopie)", kundennr: "", erst: "", erstDatum: "", erstZeit: "", erstZeitBis: ""} : {};
+    const k = id ? kById(id) : copyFrom ? {...copyFrom, name: (copyFrom.name || "") + " (Kopie)", kundennr: "", gln: "", erst: "", erstDatum: "", erstZeit: "", erstZeitBis: ""} : {};
     $("fTitle").textContent = id ? "Kunde bearbeiten" : copyFrom ? "Kunde kopieren" : "Neuer Kunde";
     FIELDS.forEach(f => { $("form").elements[f].value = (k && k[f]) || ""; });
     if (!$("f_kundennr").value) $("f_kundennr").value = String(nextKundennr());
     $("nrMsg").textContent = "Nächste freie Nummer ist vorgeschlagen, du kannst sie ändern."; $("nrMsg").style.color = ""; $("f_kundennr").removeAttribute("aria-invalid");
     if (k && k.erst && !k.erstDatum && !k.erstZeit) { $("f_erstDatum").value = String(k.erst).slice(0, 10); $("f_erstZeit").value = String(k.erst).slice(11, 16); }
     syncNoTime("f_notime", ["f_erstZeit", "f_erstZeitBis"]);
-    updateKaufmannField();
+    updateKaufmannField(); checkGln();
     $("f_status").value = id ? statusOf(k) : copyFrom ? "Potenziell" : (stFilter || "Potenziell");
     $("kettenList").innerHTML = [...new Set(kunden.map(x => x.kette).filter(Boolean))].sort().map(x => `<option value="${esc(x)}"></option>`).join("");
     $("f_paste").value = ""; $("parseMsg").textContent = ""; $("osmBox").classList.add("hidden"); $("osmBox").innerHTML = "";
@@ -1568,6 +1570,7 @@ textarea{resize:vertical;min-height:96px}
     if (!colK) { status("Keine Verbindung zum Speicher. Bitte Seite neu öffnen und angemeldet sein.", true); return; }
     const data = {};
     FIELDS.forEach(f => data[f] = $("form").elements[f].value.trim());
+    data.gln = data.gln.replace(/\s+/g, "");
     // Neubelieferung: Datum und Uhrzeit getrennt, beides optional; «erst» = Kalendereintrag (nur mit Datum)
     if (data.regie !== "Nein") data.kaufmann = "";
     if (!data.erstZeit && data.erstZeitBis) { data.erstZeit = data.erstZeitBis; data.erstZeitBis = ""; }
@@ -1621,6 +1624,12 @@ textarea{resize:vertical;min-height:96px}
     $("f_kaufmannWrap").classList.toggle("off", !nein);
     $("f_kaufmann").disabled = !nein;
   }
+  function checkGln() {
+    const v = $("f_gln").value.replace(/\s+/g, ""), m = $("glnMsg");
+    m.textContent = v && !/^\d{13}$/.test(v) ? `Eine GLN hat 13 Ziffern (jetzt: ${v.replace(/\D/g, "").length}). Speichern geht trotzdem.` : "";
+    m.style.color = m.textContent ? "var(--warn)" : "";
+  }
+  $("f_gln").addEventListener("input", checkGln);
   $("f_regie").addEventListener("change", () => { updateKaufmannField(); if ($("f_regie").value === "Nein") $("f_kaufmann").focus(); });
   const betriebsform = k => k.regie === "Ja" ? "Regiemarkt" : k.regie === "Nein" ? "Kaufmann" + (k.kaufmann ? ": " + k.kaufmann : "") : "";
 
