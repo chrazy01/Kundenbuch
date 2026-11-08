@@ -354,11 +354,12 @@ textarea{resize:vertical;min-height:96px}
     <div class="bar">
       <button class="chip" id="chipToday" type="button" aria-pressed="false">Heute Termin</button>
       <select class="chip" id="sort" aria-label="Sortierung">
-        <option value="name">A–Z</option>
+        <option value="name">Nach Name</option>
         <option value="ort">Nach Ort</option>
         <option value="nr">Nach Kundennummer</option>
-        <option value="neu">Zuletzt bearbeitet</option>
+        <option value="neu">Nach Bearbeitung</option>
       </select>
+      <button class="chip" id="sortDir" type="button"></button>
       <span class="count" id="count"></span>
       <button class="chip hidden" id="btnTrash" type="button">Papierkorb</button>
     </div>
@@ -785,11 +786,14 @@ textarea{resize:vertical;min-height:96px}
     renderStatusbar(rows);
     if (stFilter) rows = rows.filter(k => statusOf(k) === stFilter);
     if (onlyToday) rows = rows.filter(k => hasEventToday(k.id));
-    const s = $("sort").value;
-    rows.sort((a, b) => s === "neu" ? String(b.geaendert || "").localeCompare(String(a.geaendert || ""))
-      : s === "ort" ? (norm(a.ort).localeCompare(norm(b.ort)) || norm(a.name).localeCompare(norm(b.name)))
-      : s === "nr" ? ((parseInt(a.kundennr) || 1e9) - (parseInt(b.kundennr) || 1e9))
-      : norm(a.name).localeCompare(norm(b.name)));
+    const s = $("sort").value, dir = sortDesc ? -1 : 1;
+    const byName = (a, b) => norm(a.name).localeCompare(norm(b.name));
+    rows.sort((a, b) => {
+      if (s === "neu") return dir * String(a.geaendert || "").localeCompare(String(b.geaendert || "")) || byName(a, b);
+      if (s === "ort") { if (!a.ort !== !b.ort) return a.ort ? -1 : 1; return dir * norm(a.ort).localeCompare(norm(b.ort)) || byName(a, b); }
+      if (s === "nr") { const x = parseInt(a.kundennr), y = parseInt(b.kundennr); if (isNaN(x) !== isNaN(y)) return isNaN(x) ? 1 : -1; return dir * ((x || 0) - (y || 0)) || byName(a, b); }
+      return dir * byName(a, b);
+    });
     $("count").textContent = rows.length + (rows.length === 1 ? " Eintrag" : " Einträge");
     const list = $("list");
     if (!kunden.length) {
@@ -835,7 +839,19 @@ textarea{resize:vertical;min-height:96px}
   });
   $("q").addEventListener("input", renderList);
   $("statusbar").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if (!b) return; stFilter = b.dataset.f; renderList(); });
-  $("sort").addEventListener("change", renderList);
+  // Sortierung + Richtung (wird auf dem Gerät gemerkt)
+  let sortDesc = false;
+  const SORT_LABEL = {name: ["A → Z", "Z → A"], ort: ["A → Z", "Z → A"], nr: ["1 → 9", "9 → 1"], neu: ["Älteste zuerst", "Neueste zuerst"]};
+  function updateSortDir() {
+    const l = SORT_LABEL[$("sort").value] || SORT_LABEL.name;
+    $("sortDir").textContent = (sortDesc ? "↓ " : "↑ ") + l[sortDesc ? 1 : 0];
+    $("sortDir").setAttribute("aria-label", "Reihenfolge: " + l[sortDesc ? 1 : 0] + ". Antippen zum Umkehren.");
+    try { localStorage.setItem("kb_sort", JSON.stringify({s: $("sort").value, d: sortDesc})); } catch {}
+  }
+  try { const v = JSON.parse(localStorage.getItem("kb_sort") || "null"); if (v && SORT_LABEL[v.s]) { $("sort").value = v.s; sortDesc = !!v.d; } } catch {}
+  updateSortDir();
+  $("sort").addEventListener("change", () => { sortDesc = $("sort").value === "neu"; updateSortDir(); renderList(); });
+  $("sortDir").addEventListener("click", () => { sortDesc = !sortDesc; updateSortDir(); renderList(); });
   $("chipToday").addEventListener("click", () => { onlyToday = !onlyToday; $("chipToday").setAttribute("aria-pressed", String(onlyToday)); renderList(); });
   $("btnNew").addEventListener("click", () => openForm(null));
 
