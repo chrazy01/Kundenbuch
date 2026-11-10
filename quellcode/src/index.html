@@ -1736,6 +1736,8 @@ textarea{resize:vertical;min-height:96px}
     setTimeout(() => status(""), 4000);
   });
   // ---------- Text aus Bild lesen (läuft nur auf dem Gerät, das Bild wird nicht gespeichert) ----------
+  const OCR_ON = true;   // false = Bilderkennung ausgeblendet (richtige App, solange nur im Test)
+  if (!OCR_ON) { $("btnOcr").remove(); $("ocrFile").remove(); }
   let ocrWorkerP = null;
   const loadScript = src => new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error("script")); document.head.appendChild(sc); });
   function getOcr(progress) {
@@ -1789,11 +1791,13 @@ textarea{resize:vertical;min-height:96px}
       if (canvas) { canvas.width = canvas.height = 0; }   // Bild sofort verwerfen, wird nirgends gespeichert
     }
   }
-  $("ocrFile").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if (f) ocrFile(f); });
+  if (OCR_ON) $("ocrFile").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if (f) ocrFile(f); });
   $("f_paste").addEventListener("paste", e => {
+    if (!OCR_ON) return;
     const f = imageFilesFrom(e.clipboardData); if (f.length) { e.preventDefault(); e.stopPropagation(); ocrFile(f[0]); }
   });
   (() => {
+    if (!OCR_ON) return;
     const box = $("f_paste").closest(".paste");
     box.addEventListener("dragover", e => { e.preventDefault(); e.stopPropagation(); box.classList.add("dragover"); });
     box.addEventListener("dragleave", e => { if (!box.contains(e.relatedTarget)) box.classList.remove("dragover"); });

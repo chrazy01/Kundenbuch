@@ -165,6 +165,8 @@ textarea{resize:vertical;min-height:96px}
 .hint{color:var(--muted);font-size:.88rem;margin-top:4px}
 .paste{background:var(--accent-soft);border:1px dashed var(--brand-line);border-radius:var(--r);padding:12px}
 .paste textarea{min-height:72px;background:var(--surface)}
+.paste.dragover{outline:3px dashed var(--focus);outline-offset:3px}
+#btnOcr.busy{opacity:.6;pointer-events:none}
 .filled{box-shadow:0 0 0 3px var(--accent) inset}
 .namerow{display:flex;gap:8px;flex-wrap:wrap}
 .namerow input{flex:1 1 240px}
@@ -513,6 +515,8 @@ textarea{resize:vertical;min-height:96px}
           <textarea id="f_paste" rows="3" placeholder="Tablet: in der Google-Maps-App die Adresse bzw. Telefonnummer lange antippen (wird kopiert), dann hier «Aus Zwischenablage einfügen»"></textarea>
           <div class="row" style="margin-top:8px;align-items:center">
             <button class="btn small" type="button" id="btnClip">Aus Zwischenablage einfügen</button>
+            <label class="btn small" for="ocrFile" id="btnOcr" style="cursor:pointer">Bild/Foto einlesen</label>
+            <input type="file" id="ocrFile" accept="image/*" class="sr">
             <button class="btn primary small" type="button" id="btnParse">In Maske übertragen</button>
             <span class="hint" id="parseMsg" role="status"></span>
           </div>
@@ -576,7 +580,8 @@ textarea{resize:vertical;min-height:96px}
 <div class="modal hidden" id="terminModal" role="dialog" aria-modal="true" aria-labelledby="tmTitle">
   <form class="box" id="terminForm" novalidate>
     <h2 id="tmTitle">Neuer Termin</h2>
-    <div class="field"><label for="t_kunde">Kunde *</label><select id="t_kunde"></select></div>
+    <div class="field"><label for="t_kunde">Kunde</label><select id="t_kunde"></select></div>
+    <div class="field" id="t_titelWrap"><label for="t_titel">Titel *</label><input id="t_titel" autocomplete="off" placeholder="z.B. Messe Hannover, Teamsitzung, Büro"></div>
     <div class="field"><label for="t_typ">Art</label>
       <select id="t_typ"><option>Besuch</option><option>Telefonat</option><option>Sonstiges</option></select>
     </div>
@@ -740,7 +745,7 @@ textarea{resize:vertical;min-height:96px}
 
   // ---------- Alle Termine (eigene + Neubelieferungen) ----------
   function allEvents() {
-    const ev = termine.filter(t => t.start && kById(t.kundeId)).map(t => ({...t, derived: false}));
+    const ev = termine.filter(t => t.start && (t.kundeId ? kById(t.kundeId) : true)).map(t => ({...t, derived: false}));
     kunden.forEach(k => { if (k.erst) ev.push({id: "erst_" + k.id, kundeId: k.id, typ: "Neubelieferung", start: k.erst, bis: k.erstZeitBis || "", notiz: "", derived: true}); });
     return ev.sort((a, b) => String(a.start).localeCompare(String(b.start)));
   }
@@ -864,11 +869,12 @@ textarea{resize:vertical;min-height:96px}
     if (!calState.sel) calState.sel = todayStr(); show("vCal"); renderCal();
   }
   // withCard: Knopf «Kundenkarte» neben dem Namen (nicht nötig, wenn man schon auf der Kundenkarte ist)
+  const evName = (e, k) => k ? k.name : (e.titel || "Termin");
   function evRow(e, withCard = true) {
     const k = kById(e.kundeId);
     return `<div class="ev" role="button" tabindex="0" aria-label="Termin öffnen" data-typ="${esc(e.typ)}" data-ev="${esc(e.id)}" data-k="${esc(e.kundeId)}">
       <span class="when">${esc(fmtDay(e.start))}<br>${fmtTime(e.start) ? esc(fmtTime(e.start)) + (e.bis ? "–" + esc(e.bis) : "") + " Uhr" : "ohne Uhrzeit"}</span>
-      <span class="what"><span class="whathead"><strong>${esc(k ? k.name : "?")}</strong>${withCard && k ? `<button type="button" class="btn small cardbtn" data-card="${esc(k.id)}">Kundenkarte</button>` : ""}</span>${e.notiz ? `<span class="evnote">${esc(e.notiz)}</span>` : ""}</span>
+      <span class="what"><span class="whathead"><strong>${esc(evName(e, k))}</strong>${withCard && k ? `<button type="button" class="btn small cardbtn" data-card="${esc(k.id)}">Kundenkarte</button>` : ""}</span>${e.notiz ? `<span class="evnote">${esc(e.notiz)}</span>` : ""}</span>
       <span class="typ">${esc(e.typ)}</span>
     </div>`;
   }
@@ -888,7 +894,7 @@ textarea{resize:vertical;min-height:96px}
       const cls = ["cal-day", d.getMonth() !== m ? "out" : "", ds === todayStr() ? "today" : "", ds === calState.sel ? "sel" : ""].join(" ");
       html += `<button type="button" class="${cls}" data-day="${ds}" aria-label="${esc(fmtDay(ds))}, ${list.length} Termine">
         <span class="dn">${d.getDate()}</span>
-        ${list.slice(0, 3).map(e => { const k = kById(e.kundeId); return `<span class="cal-ev t-${esc(e.typ)}"><span class="cn">${esc(k ? k.name : "")}</span>${fmtTime(e.start) ? `<span class="ct">${esc(fmtTime(e.start))}</span>` : ""}</span>`; }).join("")}
+        ${list.slice(0, 3).map(e => { const k = kById(e.kundeId); return `<span class="cal-ev t-${esc(e.typ)}"><span class="cn">${esc(evName(e, k))}</span>${fmtTime(e.start) ? `<span class="ct">${esc(fmtTime(e.start))}</span>` : ""}</span>`; }).join("")}
         ${list.length > 3 ? `<span class="cal-more">+${list.length - 3} weitere</span>` : ""}
         <span class="dots">${list.slice(0, 6).map(e => `<span class="dot t-${esc(e.typ)}"></span>`).join("")}</span>
       </button>`;
@@ -917,12 +923,13 @@ textarea{resize:vertical;min-height:96px}
 
   // ---------- Termin-Dialog ----------
   function openTermin(terminId, kundeId, day) {
-    if (!kunden.length) { status("Lege zuerst einen Kunden an, dann kannst du Termine eintragen.", true); return; }
     editingTerminId = terminId;
     const t = terminId ? termine.find(x => x.id === terminId) : null;
     const sorted = kunden.slice().sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
-    $("t_kunde").innerHTML = `<option value="">Kunde wählen …</option>` + sorted.map(k => `<option value="${esc(k.id)}">${esc(k.name)}${k.ort ? " (" + esc(k.ort) + ")" : ""}</option>`).join("");
-    $("t_kunde").value = t ? t.kundeId : (kundeId || "");
+    $("t_kunde").innerHTML = `<option value="">– Ohne Kunde (eigener Titel) –</option>` + sorted.map(k => `<option value="${esc(k.id)}">${esc(k.name)}${k.ort ? " (" + esc(k.ort) + ")" : ""}</option>`).join("");
+    $("t_kunde").value = t ? (t.kundeId || "") : (kundeId || "");
+    $("t_titel").value = t ? (t.titel || "") : "";
+    syncTitel();
     const typ = t ? t.typ : "Besuch";
     if (![...$("t_typ").options].some(o => o.value === typ)) $("t_typ").append(new Option(typ, typ));
     $("t_typ").value = typ;
@@ -935,17 +942,21 @@ textarea{resize:vertical;min-height:96px}
     $("tmMsg").textContent = "";
     $("terminModal").classList.remove("hidden");
   }
+  function syncTitel() { $("t_titelWrap").classList.toggle("hidden", !!$("t_kunde").value); }
+  $("t_kunde").addEventListener("change", syncTitel);
+  $("t_titel").addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
   const closeTermin = () => $("terminModal").classList.add("hidden");
   $("tmCancel").addEventListener("click", closeTermin);
   $("terminForm").addEventListener("submit", async e => {
     e.preventDefault();
     const kundeId = $("t_kunde").value, datum = $("t_datum").value, zeit = $("t_notime").checked ? "" : $("t_zeit").value;
     const start = datum ? datum + (zeit ? "T" + zeit : "") : "";
-    if (!kundeId) { $("tmMsg").textContent = "Bitte einen Kunden wählen."; $("t_kunde").focus(); return; }
+    const titel = kundeId ? "" : $("t_titel").value.trim();
+    if (!kundeId && !titel) { $("tmMsg").textContent = "Bitte einen Kunden wählen oder einen Titel eingeben."; $("t_titel").focus(); return; }
     if (!start) { $("tmMsg").textContent = "Bitte ein Datum angeben. Die Uhrzeit ist freiwillig."; $("t_datum").focus(); return; }
     if (!colT) return;
     const id = editingTerminId || newId();
-    const doc = {kundeId, typ: $("t_typ").value, start, notiz: $("t_notiz").value.trim(), geaendert: new Date().toISOString()};
+    const doc = {kundeId, titel, typ: $("t_typ").value, start, notiz: $("t_notiz").value.trim(), geaendert: new Date().toISOString()};
     closeTermin();
     termine = termine.filter(t => t.id !== id).concat([{id, ...doc}]);
     calState.sel = start.slice(0, 10); calState.y = +start.slice(0, 4); calState.m = +start.slice(5, 7) - 1;
@@ -1724,6 +1735,77 @@ textarea{resize:vertical;min-height:96px}
     status(n ? `${n} ${n === 1 ? "Feld" : "Felder"} übernommen${o.tel ? "" : " (keine Telefonnummer gefunden)"}. Bitte kurz prüfen.` : "Die Angaben stehen schon so in der Maske.");
     setTimeout(() => status(""), 4000);
   });
+  // ---------- Text aus Bild lesen (läuft nur auf dem Gerät, das Bild wird nicht gespeichert) ----------
+  const OCR_ON = false;   // false = Bilderkennung ausgeblendet (richtige App, solange nur im Test)
+  if (!OCR_ON) { $("btnOcr").remove(); $("ocrFile").remove(); }
+  let ocrWorkerP = null;
+  const loadScript = src => new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error("script")); document.head.appendChild(sc); });
+  function getOcr(progress) {
+    if (!ocrWorkerP) ocrWorkerP = (async () => {
+      if (!window.Tesseract) await loadScript("ocr/tesseract.min.js");
+      const base = new URL("ocr/", location.href).href;
+      return Tesseract.createWorker("deu", 1, {workerPath: base + "worker.min.js", corePath: base, langPath: base.replace(/\/$/, ""), gzip: true,
+        logger: m => ocrProgress && ocrProgress(m)});
+    })().catch(e => { ocrWorkerP = null; throw e; });
+    return ocrWorkerP;
+  }
+  let ocrProgress = null;
+  function prepImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight, big = Math.max(w, h);
+        const sc = big > 2400 ? 2400 / big : big < 1000 ? 2 : 1, c = document.createElement("canvas");
+        c.width = Math.round(w * sc); c.height = Math.round(h * sc);
+        const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url); resolve(c);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("img")); };
+      img.src = url;
+    });
+  }
+  const cleanOcr = t => String(t || "").split("\n").map(l => l.replace(/[|_~»«]+/g, " ").replace(/\s{2,}/g, " ").trim()).filter(l => l.length > 1).join("\n");
+  async function ocrFile(file) {
+    const msg = $("parseMsg"), btn = $("btnOcr");
+    if (!file || !/^image\//.test(file.type || "image/")) { msg.textContent = "Bitte ein Bild wählen (Foto oder Screenshot)."; return; }
+    btn.classList.add("busy"); const label = btn.textContent;
+    const show = t => { msg.textContent = t; btn.textContent = t.length < 30 ? t : "Liest …"; };
+    ocrProgress = m => {
+      if (m.status === "recognizing text") show(`Text wird gelesen … ${Math.round((m.progress || 0) * 100)} %`);
+      else if (/load|initializ/.test(m.status)) show("Texterkennung wird geladen …");
+    };
+    let canvas = null;
+    try {
+      show("Texterkennung wird geladen …");
+      const [w, c] = await Promise.all([getOcr(), prepImage(file)]); canvas = c;
+      const {data} = await w.recognize(canvas);
+      const text = cleanOcr(data && data.text);
+      if (!text) { msg.textContent = "Im Bild wurde kein Text gefunden. Ein schärferes Foto oder ein Screenshot hilft."; return; }
+      $("f_paste").value = text;
+      $("btnParse").click();
+      msg.textContent = (msg.textContent || "").replace(/\s*Bitte kurz prüfen\.?/, "") + " Aus dem Bild gelesen, bitte kurz prüfen.";
+    } catch (e) {
+      msg.textContent = navigator.onLine ? "Das Bild konnte nicht gelesen werden. Bitte nochmals versuchen." : "Beim ersten Mal braucht die Texterkennung Internet. Danach geht sie auch offline.";
+    } finally {
+      ocrProgress = null; btn.textContent = label; btn.classList.remove("busy");
+      if (canvas) { canvas.width = canvas.height = 0; }   // Bild sofort verwerfen, wird nirgends gespeichert
+    }
+  }
+  if (OCR_ON) $("ocrFile").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if (f) ocrFile(f); });
+  $("f_paste").addEventListener("paste", e => {
+    if (!OCR_ON) return;
+    const f = imageFilesFrom(e.clipboardData); if (f.length) { e.preventDefault(); e.stopPropagation(); ocrFile(f[0]); }
+  });
+  (() => {
+    if (!OCR_ON) return;
+    const box = $("f_paste").closest(".paste");
+    box.addEventListener("dragover", e => { e.preventDefault(); e.stopPropagation(); box.classList.add("dragover"); });
+    box.addEventListener("dragleave", e => { if (!box.contains(e.relatedTarget)) box.classList.remove("dragover"); });
+    box.addEventListener("drop", e => {
+      const f = imageFilesFrom(e.dataTransfer); box.classList.remove("dragover");
+      if (f.length) { e.preventDefault(); e.stopPropagation(); ocrFile(f[0]); }
+    });
+  })();
   $("btnClip").addEventListener("click", async () => {
     const msg = $("parseMsg");
     try {
