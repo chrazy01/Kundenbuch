@@ -950,11 +950,11 @@ textarea{resize:vertical;min-height:96px}
   function syncTitel() {
     const kid = $("t_kunde").value, nb = $("t_typ").querySelector('[value="Neubelieferung"]');
     $("t_titelWrap").classList.toggle("hidden", !!kid);
-    const edit = !!editingTerminId;   // bestehende Termine bleiben Termine
-    nb.disabled = !kid || edit; nb.textContent = edit ? "Neubelieferung (in der Kundenmaske)" : kid ? "Neubelieferung" : "Neubelieferung (nur mit Kunde)";
-    if (!kid && $("t_typ").value === "Neubelieferung") $("t_typ").value = "Besuch";
+    const edit = !!editingTerminId;   // bestehende Termine bleiben Termine; ohne Kunde ist die Neubelieferung ein normaler Termin
     const k = kid && kById(kid), isNb = $("t_typ").value === "Neubelieferung";
-    $("t_nbHint").textContent = isNb ? "Wird beim Kunden als Neubelieferung eingetragen" + (k && k.erst ? ` und ersetzt die bisherige vom ${fmtDay(k.erst)}.` : ".") + (isNb && $("t_notiz").value.trim() ? " Die Notiz kommt zu den Notizen des Kunden." : "") : "";
+    $("t_nbHint").textContent = !isNb ? ""
+      : kid && !edit ? "Wird beim Kunden als Neubelieferung eingetragen" + (k && k.erst ? ` und ersetzt die bisherige vom ${fmtDay(k.erst)}.` : ".") + ($("t_notiz").value.trim() ? " Die Notiz kommt zu den Notizen des Kunden." : "")
+      : !kid ? "Wird als eigener Termin gespeichert (rot im Kalender). Sobald der Kunde angelegt ist, kannst du sie dort eintragen." : "";
   }
   $("t_kunde").addEventListener("change", syncTitel);
   $("t_typ").addEventListener("change", syncTitel);
