@@ -584,7 +584,8 @@ textarea{resize:vertical;min-height:96px}
     <div class="field"><label for="t_kunde">Kunde</label><select id="t_kunde"></select></div>
     <div class="field" id="t_titelWrap"><label for="t_titel">Titel *</label><input id="t_titel" autocomplete="off" placeholder="z.B. Messe Hannover, Teamsitzung, Büro"></div>
     <div class="field"><label for="t_typ">Art</label>
-      <select id="t_typ"><option>Besuch</option><option>Telefonat</option><option>Sonstiges</option></select>
+      <select id="t_typ"><option>Besuch</option><option>Telefonat</option><option>Sonstiges</option><option value="Neubelieferung">Neubelieferung</option></select>
+      <p class="hint" id="t_nbHint"></p>
     </div>
     <div class="field"><div class="duo">
       <div><label for="t_datum">Datum *</label><input id="t_datum" type="date"></div>
@@ -932,8 +933,10 @@ textarea{resize:vertical;min-height:96px}
     $("t_titel").value = t ? (t.titel || "") : "";
     syncTitel();
     const typ = t ? t.typ : "Besuch";
-    if (![...$("t_typ").options].some(o => o.value === typ)) $("t_typ").append(new Option(typ, typ));
+    if (![...$("t_typ").options].some(o => o.value === typ)) $("t_typ").insertBefore(new Option(typ, typ), $("t_typ").querySelector('[value="Neubelieferung"]'));
     $("t_typ").value = typ;
+    $("t_notiz").value = t ? (t.notiz || "") : "";
+    syncTitel();
     $("t_datum").value = t ? String(t.start).slice(0, 10) : (day || todayStr());
     $("t_zeit").value = t ? String(t.start).slice(11, 16) : "";
     syncNoTime("t_notime", ["t_zeit"]);
@@ -943,8 +946,19 @@ textarea{resize:vertical;min-height:96px}
     $("tmMsg").textContent = "";
     $("terminModal").classList.remove("hidden");
   }
-  function syncTitel() { $("t_titelWrap").classList.toggle("hidden", !!$("t_kunde").value); }
+  // Neubelieferung gibt es nur mit Kunde; sie wird beim Kunden gespeichert (wie in der Kundenmaske)
+  function syncTitel() {
+    const kid = $("t_kunde").value, nb = $("t_typ").querySelector('[value="Neubelieferung"]');
+    $("t_titelWrap").classList.toggle("hidden", !!kid);
+    const edit = !!editingTerminId;   // bestehende Termine bleiben Termine
+    nb.disabled = !kid || edit; nb.textContent = edit ? "Neubelieferung (in der Kundenmaske)" : kid ? "Neubelieferung" : "Neubelieferung (nur mit Kunde)";
+    if (!kid && $("t_typ").value === "Neubelieferung") $("t_typ").value = "Besuch";
+    const k = kid && kById(kid), isNb = $("t_typ").value === "Neubelieferung";
+    $("t_nbHint").textContent = isNb ? "Wird beim Kunden als Neubelieferung eingetragen" + (k && k.erst ? ` und ersetzt die bisherige vom ${fmtDay(k.erst)}.` : ".") + (isNb && $("t_notiz").value.trim() ? " Die Notiz kommt zu den Notizen des Kunden." : "") : "";
+  }
   $("t_kunde").addEventListener("change", syncTitel);
+  $("t_typ").addEventListener("change", syncTitel);
+  $("t_notiz").addEventListener("input", () => { if ($("t_typ").value === "Neubelieferung") syncTitel(); });
   $("t_titel").addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
   const closeTermin = () => $("terminModal").classList.add("hidden");
   $("tmCancel").addEventListener("click", closeTermin);
@@ -956,6 +970,18 @@ textarea{resize:vertical;min-height:96px}
     if (!kundeId && !titel) { $("tmMsg").textContent = "Bitte einen Kunden wählen oder einen Titel eingeben."; $("t_titel").focus(); return; }
     if (!start) { $("tmMsg").textContent = "Bitte ein Datum angeben. Die Uhrzeit ist freiwillig."; $("t_datum").focus(); return; }
     if (!colT) return;
+    if ($("t_typ").value === "Neubelieferung" && kundeId && !editingTerminId) {
+      const k = kById(kundeId); if (!k) return;
+      const now = new Date().toISOString(), notiz = $("t_notiz").value.trim();
+      const upd = {erstDatum: datum, erstZeit: zeit, erstZeitBis: "", erst: start, geaendert: now};
+      if (notiz) upd.notizen = (k.notizen || []).map(n => ({...n})).concat([{id: newId(), text: "Neubelieferung: " + notiz, kat: "Bestellung", pin: false, datum: now}]);
+      closeTermin();
+      alleKunden = alleKunden.map(x => x.id === k.id ? {...x, ...upd} : x); syncKunden();
+      calState.sel = datum; calState.y = +datum.slice(0, 4); calState.m = +datum.slice(5, 7) - 1;
+      rerender();
+      await queueWrite(k.id, () => colK.doc(k.id).update(upd)).catch(() => {});
+      return;
+    }
     const id = editingTerminId || newId();
     const doc = {kundeId, titel, typ: $("t_typ").value, start, notiz: $("t_notiz").value.trim(), geaendert: new Date().toISOString()};
     closeTermin();
