@@ -580,7 +580,8 @@ textarea{resize:vertical;min-height:96px}
 <div class="modal hidden" id="terminModal" role="dialog" aria-modal="true" aria-labelledby="tmTitle">
   <form class="box" id="terminForm" novalidate>
     <h2 id="tmTitle">Neuer Termin</h2>
-    <div class="field"><label for="t_kunde">Kunde *</label><select id="t_kunde"></select></div>
+    <div class="field"><label for="t_kunde">Kunde</label><select id="t_kunde"></select></div>
+    <div class="field" id="t_titelWrap"><label for="t_titel">Titel *</label><input id="t_titel" autocomplete="off" placeholder="z.B. Messe Hannover, Teamsitzung, Büro"></div>
     <div class="field"><label for="t_typ">Art</label>
       <select id="t_typ"><option>Besuch</option><option>Telefonat</option><option>Sonstiges</option></select>
     </div>
@@ -744,7 +745,7 @@ textarea{resize:vertical;min-height:96px}
 
   // ---------- Alle Termine (eigene + Neubelieferungen) ----------
   function allEvents() {
-    const ev = termine.filter(t => t.start && kById(t.kundeId)).map(t => ({...t, derived: false}));
+    const ev = termine.filter(t => t.start && (t.kundeId ? kById(t.kundeId) : true)).map(t => ({...t, derived: false}));
     kunden.forEach(k => { if (k.erst) ev.push({id: "erst_" + k.id, kundeId: k.id, typ: "Neubelieferung", start: k.erst, bis: k.erstZeitBis || "", notiz: "", derived: true}); });
     return ev.sort((a, b) => String(a.start).localeCompare(String(b.start)));
   }
@@ -868,11 +869,12 @@ textarea{resize:vertical;min-height:96px}
     if (!calState.sel) calState.sel = todayStr(); show("vCal"); renderCal();
   }
   // withCard: Knopf «Kundenkarte» neben dem Namen (nicht nötig, wenn man schon auf der Kundenkarte ist)
+  const evName = (e, k) => k ? k.name : (e.titel || "Termin");
   function evRow(e, withCard = true) {
     const k = kById(e.kundeId);
     return `<div class="ev" role="button" tabindex="0" aria-label="Termin öffnen" data-typ="${esc(e.typ)}" data-ev="${esc(e.id)}" data-k="${esc(e.kundeId)}">
       <span class="when">${esc(fmtDay(e.start))}<br>${fmtTime(e.start) ? esc(fmtTime(e.start)) + (e.bis ? "–" + esc(e.bis) : "") + " Uhr" : "ohne Uhrzeit"}</span>
-      <span class="what"><span class="whathead"><strong>${esc(k ? k.name : "?")}</strong>${withCard && k ? `<button type="button" class="btn small cardbtn" data-card="${esc(k.id)}">Kundenkarte</button>` : ""}</span>${e.notiz ? `<span class="evnote">${esc(e.notiz)}</span>` : ""}</span>
+      <span class="what"><span class="whathead"><strong>${esc(evName(e, k))}</strong>${withCard && k ? `<button type="button" class="btn small cardbtn" data-card="${esc(k.id)}">Kundenkarte</button>` : ""}</span>${e.notiz ? `<span class="evnote">${esc(e.notiz)}</span>` : ""}</span>
       <span class="typ">${esc(e.typ)}</span>
     </div>`;
   }
@@ -892,7 +894,7 @@ textarea{resize:vertical;min-height:96px}
       const cls = ["cal-day", d.getMonth() !== m ? "out" : "", ds === todayStr() ? "today" : "", ds === calState.sel ? "sel" : ""].join(" ");
       html += `<button type="button" class="${cls}" data-day="${ds}" aria-label="${esc(fmtDay(ds))}, ${list.length} Termine">
         <span class="dn">${d.getDate()}</span>
-        ${list.slice(0, 3).map(e => { const k = kById(e.kundeId); return `<span class="cal-ev t-${esc(e.typ)}"><span class="cn">${esc(k ? k.name : "")}</span>${fmtTime(e.start) ? `<span class="ct">${esc(fmtTime(e.start))}</span>` : ""}</span>`; }).join("")}
+        ${list.slice(0, 3).map(e => { const k = kById(e.kundeId); return `<span class="cal-ev t-${esc(e.typ)}"><span class="cn">${esc(evName(e, k))}</span>${fmtTime(e.start) ? `<span class="ct">${esc(fmtTime(e.start))}</span>` : ""}</span>`; }).join("")}
         ${list.length > 3 ? `<span class="cal-more">+${list.length - 3} weitere</span>` : ""}
         <span class="dots">${list.slice(0, 6).map(e => `<span class="dot t-${esc(e.typ)}"></span>`).join("")}</span>
       </button>`;
@@ -921,12 +923,13 @@ textarea{resize:vertical;min-height:96px}
 
   // ---------- Termin-Dialog ----------
   function openTermin(terminId, kundeId, day) {
-    if (!kunden.length) { status("Lege zuerst einen Kunden an, dann kannst du Termine eintragen.", true); return; }
     editingTerminId = terminId;
     const t = terminId ? termine.find(x => x.id === terminId) : null;
     const sorted = kunden.slice().sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
-    $("t_kunde").innerHTML = `<option value="">Kunde wählen …</option>` + sorted.map(k => `<option value="${esc(k.id)}">${esc(k.name)}${k.ort ? " (" + esc(k.ort) + ")" : ""}</option>`).join("");
-    $("t_kunde").value = t ? t.kundeId : (kundeId || "");
+    $("t_kunde").innerHTML = `<option value="">– Ohne Kunde (eigener Titel) –</option>` + sorted.map(k => `<option value="${esc(k.id)}">${esc(k.name)}${k.ort ? " (" + esc(k.ort) + ")" : ""}</option>`).join("");
+    $("t_kunde").value = t ? (t.kundeId || "") : (kundeId || "");
+    $("t_titel").value = t ? (t.titel || "") : "";
+    syncTitel();
     const typ = t ? t.typ : "Besuch";
     if (![...$("t_typ").options].some(o => o.value === typ)) $("t_typ").append(new Option(typ, typ));
     $("t_typ").value = typ;
@@ -939,17 +942,21 @@ textarea{resize:vertical;min-height:96px}
     $("tmMsg").textContent = "";
     $("terminModal").classList.remove("hidden");
   }
+  function syncTitel() { $("t_titelWrap").classList.toggle("hidden", !!$("t_kunde").value); }
+  $("t_kunde").addEventListener("change", syncTitel);
+  $("t_titel").addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
   const closeTermin = () => $("terminModal").classList.add("hidden");
   $("tmCancel").addEventListener("click", closeTermin);
   $("terminForm").addEventListener("submit", async e => {
     e.preventDefault();
     const kundeId = $("t_kunde").value, datum = $("t_datum").value, zeit = $("t_notime").checked ? "" : $("t_zeit").value;
     const start = datum ? datum + (zeit ? "T" + zeit : "") : "";
-    if (!kundeId) { $("tmMsg").textContent = "Bitte einen Kunden wählen."; $("t_kunde").focus(); return; }
+    const titel = kundeId ? "" : $("t_titel").value.trim();
+    if (!kundeId && !titel) { $("tmMsg").textContent = "Bitte einen Kunden wählen oder einen Titel eingeben."; $("t_titel").focus(); return; }
     if (!start) { $("tmMsg").textContent = "Bitte ein Datum angeben. Die Uhrzeit ist freiwillig."; $("t_datum").focus(); return; }
     if (!colT) return;
     const id = editingTerminId || newId();
-    const doc = {kundeId, typ: $("t_typ").value, start, notiz: $("t_notiz").value.trim(), geaendert: new Date().toISOString()};
+    const doc = {kundeId, titel, typ: $("t_typ").value, start, notiz: $("t_notiz").value.trim(), geaendert: new Date().toISOString()};
     closeTermin();
     termine = termine.filter(t => t.id !== id).concat([{id, ...doc}]);
     calState.sel = start.slice(0, 10); calState.y = +start.slice(0, 4); calState.m = +start.slice(5, 7) - 1;
