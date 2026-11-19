@@ -358,6 +358,7 @@ textarea{resize:vertical;min-height:96px}
       <select class="chip" id="sort" aria-label="Sortierung">
         <option value="name">Nach Name</option>
         <option value="ort">Nach Ort</option>
+        <option value="plz">Nach Postleitzahl</option>
         <option value="nr">Nach Kundennummer</option>
         <option value="neu">Nach Bearbeitung</option>
       </select>
@@ -797,6 +798,7 @@ textarea{resize:vertical;min-height:96px}
     rows.sort((a, b) => {
       if (s === "neu") return dir * String(a.geaendert || "").localeCompare(String(b.geaendert || "")) || byName(a, b);
       if (s === "ort") { if (!a.ort !== !b.ort) return a.ort ? -1 : 1; return dir * norm(a.ort).localeCompare(norm(b.ort)) || byName(a, b); }
+      if (s === "plz") { const x = String(a.plz || "").trim(), y = String(b.plz || "").trim(); if (!x !== !y) return x ? -1 : 1; return dir * x.localeCompare(y, "de", {numeric: true}) || byName(a, b); }
       if (s === "nr") { const x = parseInt(a.kundennr), y = parseInt(b.kundennr); if (isNaN(x) !== isNaN(y)) return isNaN(x) ? 1 : -1; return dir * ((x || 0) - (y || 0)) || byName(a, b); }
       return dir * byName(a, b);
     });
@@ -847,7 +849,7 @@ textarea{resize:vertical;min-height:96px}
   $("statusbar").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if (!b) return; stFilter = b.dataset.f; renderList(); });
   // Sortierung + Richtung (wird auf dem Gerät gemerkt)
   let sortDesc = false;
-  const SORT_LABEL = {name: ["A → Z", "Z → A"], ort: ["A → Z", "Z → A"], nr: ["1 → 9", "9 → 1"], neu: ["Älteste zuerst", "Neueste zuerst"]};
+  const SORT_LABEL = {name: ["A → Z", "Z → A"], ort: ["A → Z", "Z → A"], plz: ["0 → 9", "9 → 0"], nr: ["1 → 9", "9 → 1"], neu: ["Älteste zuerst", "Neueste zuerst"]};
   function updateSortDir() {
     const l = SORT_LABEL[$("sort").value] || SORT_LABEL.name;
     $("sortDir").textContent = (sortDesc ? "↓ " : "↑ ") + l[sortDesc ? 1 : 0];
