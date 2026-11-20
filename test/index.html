@@ -275,6 +275,9 @@ textarea{resize:vertical;min-height:96px}
 .stop .acts2{grid-column:2 / -1;display:flex;gap:6px;flex-wrap:wrap}
 .iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:1rem;line-height:1}
 .iconbtn:disabled{opacity:.35;cursor:default}
+.optbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;display:grid;gap:10px}
+.optrow{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:flex-end}
+#optMsg:empty{display:none}
 .tourhead{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;color:var(--page-muted)}
 @media (max-width:560px){.stop{grid-template-columns:auto 1fr}.stop .moves{grid-column:1 / -1;flex-direction:row;justify-content:flex-end;align-items:center;grid-row:1}.stop .acts2{grid-column:1 / -1}}
 /* Status */
@@ -425,6 +428,21 @@ textarea{resize:vertical;min-height:96px}
       <a class="btn primary" id="tourMaps" href="#" target="_blank" rel="noopener">Ganze Tour in Google Maps</a>
     </div>
     <div class="tourhead"><span id="tourSummary"></span><span style="flex:1"></span><button class="btn small" type="button" id="tourEnd">Tour beenden</button></div>
+    <div class="optbox" id="optBox">
+      <div class="optrow">
+        <div class="field" style="flex:1 1 260px;margin:0"><label for="optStartSel">Startort</label>
+          <select id="optStartSel"><option value="pos">Mein aktueller Standort</option><option value="addr">Adresse eingeben …</option></select></div>
+        <div class="field" id="optAddrWrap" style="flex:2 1 300px;margin:0"><label for="optAddr">Startadresse</label>
+          <input id="optAddr" autocomplete="street-address" placeholder="z.B. Bahnhofstraße 1, 21614 Buxtehude"></div>
+      </div>
+      <div class="optrow">
+        <label class="notime" style="margin:0"><input type="checkbox" id="optBack"> Am Ende zurück zum Start</label>
+        <span style="flex:1"></span>
+        <button class="btn" type="button" id="optUndo" hidden>Vorherige Reihenfolge</button>
+        <button class="btn primary" type="button" id="optGo">Route optimieren</button>
+      </div>
+      <p class="hint" id="optMsg" role="status" style="margin:0"></p>
+    </div>
     <div class="stops" id="tourList"></div>
   </section>
 
@@ -1183,10 +1201,12 @@ textarea{resize:vertical;min-height:96px}
     const k = currentId && kById(currentId);
     if (k) { const t = inTour(k.id); $("btnDetailTour").textContent = t ? "✓ In Tour" : "+ Tour"; $("btnDetailTour").setAttribute("aria-pressed", String(t)); }
   }
-  async function saveTour(stops) {
-    tour = {stops}; rerender();
+  async function saveTour(stops, start) {
+    if (start !== undefined) tour.start = start;
+    tour = {stops, start: tour.start || null}; rerender();
     if (!tourRef) return;
-    await queueWrite("tour", () => tourRef.set({stops, geaendert: new Date().toISOString()})).catch(() => {});
+    const docT = {stops, geaendert: new Date().toISOString()}; if (tour.start) docT.start = tour.start;
+    await queueWrite("tour", () => tourRef.set(docT)).catch(() => {});
   }
   function toggleTour(id) {
     const stops = tourStops().map(st => ({...st}));
@@ -1196,6 +1216,13 @@ textarea{resize:vertical;min-height:96px}
     const open = tourStops().filter(st => st.state === "offen").map(st => kById(st.kundeId)).slice(0, 10);
     if (!open.length) return "";
     const q = k => adresse(k) || k.name;
+    const sa = tour.start && tour.start.typ === "addr" && tour.start.addr;
+    if (sa) {   // fester Startort: Route von dort aus (max. 9 Zwischenstopps)
+      const list = open.slice(0, tour.start.back ? 9 : 10), dest = tour.start.back ? sa : q(list[list.length - 1]);
+      const way = tour.start.back ? list : list.slice(0, -1);
+      return "https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=" + encodeURIComponent(sa) + "&destination=" + encodeURIComponent(dest)
+        + (way.length ? "&waypoints=" + way.map(k => encodeURIComponent(q(k))).join("%7C") : "");
+    }
     // Route beginnt beim ersten Stopp (nicht beim eigenen Standort); ein einzelner Stopp wird nur auf der Karte gezeigt
     if (open.length === 1) return mapUrl(open[0]);
     const origin = open[0], dest = open[open.length - 1], way = open.slice(1, -1);
@@ -1211,6 +1238,8 @@ textarea{resize:vertical;min-height:96px}
     const url = tourMapsUrl(), a = $("tourMaps");
     if (url) { a.href = url; a.removeAttribute("aria-disabled"); } else { a.href = "#"; a.setAttribute("aria-disabled", "true"); }
     $("tourEnd").classList.toggle("hidden", !stops.length);
+    $("optBox").classList.toggle("hidden", open < 2);
+    syncOptBox();
     if (!stops.length) {
       $("tourList").innerHTML = `<div class="empty"><h2>Noch keine Stopps</h2><p>Tippe in der Kundenliste bei den Märkten, die du abfahren willst, auf «+ Tour». Tipp: Vorher oben den Filter «Potenziell» wählen.</p><button class="btn primary" type="button" data-go-list>Zur Kundenliste</button></div>`;
       return;
@@ -1244,6 +1273,146 @@ textarea{resize:vertical;min-height:96px}
       </div>`;
     }).join("");
   }
+  // ---------- Route optimieren ----------
+  // Koordinaten: OpenStreetMap (Nominatim), Fahrzeiten: OSRM; ohne Netz/Fehler wird mit Luftlinie gerechnet
+  let optPrev = null, optBusy = false;
+  function syncOptBox() {
+    if (optBusy || document.activeElement === $("optAddr")) return;
+    const st = tour.start || {};
+    $("optStartSel").value = st.typ === "addr" ? "addr" : "pos";
+    $("optAddr").value = st.addr || "";
+    $("optBack").checked = !!st.back;
+    $("optAddrWrap").classList.toggle("hidden", $("optStartSel").value !== "addr");
+    $("optUndo").hidden = !optPrev;
+  }
+  $("optStartSel").addEventListener("change", () => { $("optAddrWrap").classList.toggle("hidden", $("optStartSel").value !== "addr"); if ($("optStartSel").value === "addr") $("optAddr").focus(); });
+  $("optAddr").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("optGo").click(); } });
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let lastNom = 0;
+  async function nominatim(params) {
+    const wait = 1100 - (Date.now() - lastNom); if (wait > 0) await sleep(wait);
+    lastNom = Date.now();
+    const r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=de&countrycodes=de,ch,at&" + new URLSearchParams(params));
+    if (!r.ok) throw new Error("http " + r.status);
+    const j = await r.json();
+    return j[0] ? {lat: +j[0].lat, lon: +j[0].lon} : null;
+  }
+  async function geocodeKunde(k) {
+    const key = norm(adresse(k));
+    if (!key) return null;
+    if (k.geo && k.geo.a === key && isFinite(k.geo.lat)) return k.geo;
+    let g = null;
+    if (k.strasse && (k.plz || k.ort)) g = await nominatim({street: k.strasse, postalcode: k.plz || "", city: k.ort || ""}).catch(() => null);
+    if (!g) g = await nominatim({q: adresse(k)}).catch(() => null);
+    if (!g && (k.plz || k.ort)) g = await nominatim({q: [k.name, k.plz, k.ort].filter(Boolean).join(" ")}).catch(() => null);
+    if (!g) return null;
+    const geo = {lat: g.lat, lon: g.lon, a: key};
+    alleKunden = alleKunden.map(x => x.id === k.id ? {...x, geo} : x); syncKunden();
+    queueWrite(k.id, () => colK.doc(k.id).update({geo})).catch(() => {});
+    return geo;
+  }
+  const getPos = () => new Promise((res, rej) => {
+    if (!navigator.geolocation) return rej(new Error("nogeo"));
+    navigator.geolocation.getCurrentPosition(p => res({lat: p.coords.latitude, lon: p.coords.longitude}), rej, {enableHighAccuracy: false, timeout: 15000, maximumAge: 120000});
+  });
+  function haversine(a, b) {
+    const R = 6371, t = x => x * Math.PI / 180, dLa = t(b.lat - a.lat), dLo = t(b.lon - a.lon);
+    const h = Math.sin(dLa / 2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  async function matrix(pts) {
+    try {
+      const coords = pts.map(p => p.lon.toFixed(6) + "," + p.lat.toFixed(6)).join(";");
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
+      const r = await fetch(`https://router.project-osrm.org/table/v1/driving/${coords}?annotations=duration,distance`, {signal: ctl.signal});
+      clearTimeout(to);
+      const j = await r.json();
+      if (j.code !== "Ok" || !j.durations) throw new Error(j.code);
+      const D = j.durations.map(row => row.map(v => v == null ? 1e9 : v));
+      return {cost: D, dur: j.durations, dist: j.distances, road: true};
+    } catch {
+      const D = pts.map(a => pts.map(b => haversine(a, b) * 1.3));   // km, grob auf Strasse hochgerechnet
+      return {cost: D, dist: D.map(r => r.map(v => v * 1000)), road: false};
+    }
+  }
+  // Reihenfolge der Punkte 1..n ab Punkt 0 (offen oder Rundtour)
+  function solveTsp(C, back) {
+    const n = C.length - 1; if (n < 1) return [];
+    const len = ord => { let s = 0, p = 0; for (const x of ord) { s += C[p][x]; p = x; } return s + (back ? C[p][0] : 0); };
+    if (n <= 13) {   // exakt (Held-Karp)
+      const N = 1 << n, dp = new Float64Array(N * n).fill(Infinity), par = new Int8Array(N * n).fill(-1);
+      for (let i = 0; i < n; i++) dp[(1 << i) * n + i] = C[0][i + 1];
+      for (let m = 1; m < N; m++) for (let i = 0; i < n; i++) {
+        const v = dp[m * n + i]; if (!(m & (1 << i)) || v === Infinity) continue;
+        for (let j = 0; j < n; j++) { if (m & (1 << j)) continue; const m2 = m | (1 << j), c = v + C[i + 1][j + 1];
+          if (c < dp[m2 * n + j]) { dp[m2 * n + j] = c; par[m2 * n + j] = i; } }
+      }
+      let best = Infinity, last = 0; const full = N - 1;
+      for (let i = 0; i < n; i++) { const c = dp[full * n + i] + (back ? C[i + 1][0] : 0); if (c < best) { best = c; last = i; } }
+      const ord = []; let m = full, i = last;
+      while (i >= 0) { ord.push(i + 1); const pi = par[m * n + i]; m &= ~(1 << i); i = pi; }
+      return ord.reverse();
+    }
+    // grösser: nächster Nachbar + 2-opt
+    let ord = [], left = new Set([...Array(n)].map((_, i) => i + 1)), p = 0;
+    while (left.size) { let b = null, bc = Infinity; for (const x of left) if (C[p][x] < bc) { bc = C[p][x]; b = x; } ord.push(b); left.delete(b); p = b; }
+    let improved = true, guard = 0;
+    while (improved && guard++ < 200) {
+      improved = false;
+      for (let i = 0; i < n - 1; i++) for (let j = i + 1; j < n; j++) {
+        const cand = ord.slice(0, i).concat(ord.slice(i, j + 1).reverse(), ord.slice(j + 1));
+        if (len(cand) < len(ord) - 1e-9) { ord = cand; improved = true; }
+      }
+    }
+    return ord;
+  }
+  const fmtDur = s => { const m = Math.round(s / 60); return m < 60 ? `${m} Min` : `${Math.floor(m / 60)} Std ${pad(m % 60)} Min`; };
+  $("optGo").addEventListener("click", async () => {
+    if (optBusy) return;
+    const msg = $("optMsg"), btn = $("optGo");
+    const typ = $("optStartSel").value, addr = $("optAddr").value.trim(), back = $("optBack").checked;
+    if (typ === "addr" && !addr) { msg.textContent = "Bitte eine Startadresse eingeben."; $("optAddr").focus(); return; }
+    if (!navigator.onLine) { msg.textContent = "Zum Optimieren braucht es Internet."; return; }
+    optBusy = true; btn.disabled = true;
+    try {
+      let startPt;
+      if (typ === "pos") {
+        msg.textContent = "Standort wird bestimmt …";
+        try { startPt = await getPos(); } catch { msg.textContent = "Der Standort ist nicht verfügbar. Bitte Standortfreigabe erlauben oder eine Startadresse eingeben."; return; }
+      } else {
+        msg.textContent = "Startadresse wird gesucht …";
+        const st = tour.start || {};
+        startPt = st.addr === addr && isFinite(st.lat) ? {lat: st.lat, lon: st.lon} : await nominatim({q: addr}).catch(() => null);
+        if (!startPt) { msg.textContent = "Die Startadresse wurde nicht gefunden. Bitte mit Strasse, PLZ und Ort eingeben."; return; }
+      }
+      const startSave = typ === "addr" ? {typ, addr, back, lat: startPt.lat, lon: startPt.lon} : {typ, back};
+      const stops = tourStops().map(st => ({...st}));
+      const fixed = stops.filter(st => st.state !== "offen"), open = stops.filter(st => st.state === "offen");
+      const pts = [], withGeo = [], noGeo = [];
+      let i = 0;
+      for (const st of open) {
+        msg.textContent = `Adressen werden gesucht … (${++i} von ${open.length})`;
+        const k = kById(st.kundeId), g = k && await geocodeKunde(k);
+        if (g) { withGeo.push(st); pts.push(g); } else noGeo.push(st);
+      }
+      if (withGeo.length < 2) { msg.textContent = "Zu wenige Stopps mit gültiger Adresse zum Optimieren."; return; }
+      msg.textContent = "Beste Reihenfolge wird berechnet …";
+      const all = [startPt].concat(pts), M = await matrix(all), ord = solveTsp(M.cost, back);
+      let dist = 0, dur = 0, p = 0;
+      for (const x of ord.concat(back ? [0] : [])) { dist += (M.dist ? M.dist[p][x] : 0) || 0; dur += (M.dur ? M.dur[p][x] : 0) || 0; p = x; }
+      optPrev = stops;
+      await saveTour(fixed.concat(ord.map(x => withGeo[x - 1]), noGeo), startSave);
+      const names = noGeo.map(st => (kById(st.kundeId) || {}).name).filter(Boolean);
+      msg.textContent = `Neue Reihenfolge: ca. ${Math.round(dist / 1000)} km` + (M.road ? `, etwa ${fmtDur(dur)} reine Fahrzeit` : " (geschätzt nach Luftlinie, der Routendienst war nicht erreichbar)") + (back ? " inkl. Rückfahrt." : ".")
+        + (names.length ? ` Ohne gültige Adresse, darum ans Ende gesetzt: ${names.join(", ")}.` : "");
+    } finally { optBusy = false; btn.disabled = false; syncOptBox(); }
+  });
+  $("optUndo").addEventListener("click", () => {
+    if (!optPrev) return;
+    const prev = optPrev; optPrev = null;
+    saveTour(prev); $("optMsg").textContent = "Vorherige Reihenfolge wiederhergestellt.";
+  });
+
   $("tourList").addEventListener("click", e => {
     const b = e.target.closest("button,[data-open]"); if (!b) return;
     const stops = tourStops().map(st => ({...st}));
@@ -2159,7 +2328,8 @@ textarea{resize:vertical;min-height:96px}
       if (view !== "vForm") rerender();
     }, onErr));
     unsubs.push(tourRef.onSnapshot(snap => {
-      tour = snap.exists ? {stops: Array.isArray((snap.data() || {}).stops) ? snap.data().stops : []} : {stops: []};
+      const td = snap.exists ? (snap.data() || {}) : {};
+      tour = {stops: Array.isArray(td.stops) ? td.stops : [], start: td.start || null};
       if (view !== "vForm") rerender(); else updateTourBtn();
     }, onErr));
   }
